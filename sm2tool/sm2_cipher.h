@@ -21,7 +21,24 @@ extern "C"	{
 		const char *msg,
 		char *rH,
 		char *sH);
-
+	int enc_ecc(
+		const char *xH,
+		const char *yH,
+		const char *kH,
+		const char *plain,
+		int plainLen,
+		char *cipher,
+		int *pCipherLen
+		);
+	int dec_ecc(
+		const char *dH,
+		const char *xH,
+		const char *yH,
+		const char *cipher,
+		int cipherLen,
+		char *plain,
+		int *pPlainLen
+		);
 
 #ifdef		__cplusplus
 			}

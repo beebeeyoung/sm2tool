@@ -382,3 +382,110 @@ ret:
 		EC_GROUP_free(group);
 	return iRet;
 }
+
+int enc_ecc(
+		const char *xH,
+		const char *yH,
+		const char *kH,
+		const char *plain,
+		int plainLen,
+		char *cipher,
+		int *pCipherLen
+		)
+{
+	int iRet = 0;
+	EC_GROUP *group = NULL;
+	EC_KEY *ec_key = NULL;
+	const EVP_MD *md = EVP_sm3();
+	SM2CiphertextValue *cv = NULL;
+	char *tbuf = NULL;
+	long tlen;
+	unsigned char mbuf[128] = {0};
+	unsigned char cbuf[sizeof(mbuf) + 256] = {0};
+	size_t mlen, clen;
+	unsigned char *p;
+
+	change_rand(kH);
+	if(!(group = new_ec_group(1,
+		"FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF",
+		"FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC",
+		"28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93",
+		"32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7",
+		"BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0",
+		"FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123",
+		"1"))){
+		goto ret;
+	}
+	if (!(ec_key = new_ec_key(group, NULL, xH, yH, NULL, NULL))) {
+		goto ret;
+	}
+	
+	if (!(cv = SM2_do_encrypt(md, (unsigned char *)plain, plainLen, ec_key))) {
+		goto ret;
+	}
+
+	p = (unsigned char *)cipher;
+	if ((clen = i2o_SM2CiphertextValue(group, cv, &p)) <= 0) {
+		goto ret;
+	}
+	tbuf = OPENSSL_buf2hexstr((unsigned char *)cipher,clen);
+	strcpy(cipher,tbuf);
+	*pCipherLen = strlen(tbuf);
+	iRet = 1;
+ret:
+	restore_rand();
+	EC_KEY_free(ec_key);
+	SM2CiphertextValue_free(cv);
+	OPENSSL_free(tbuf);
+	EC_GROUP_free(group);
+	return iRet;
+	
+}
+int dec_ecc(
+	const char *dH,
+	const char *xH,
+	const char *yH,
+	const char *cipher,
+	int cipherLen,
+	char *plain,
+	int *pPlainLen
+	)
+{
+	int iRet = 0;
+	EC_GROUP *group = NULL;
+	EC_KEY *ec_key = NULL;
+	const EVP_MD *md = EVP_sm3();
+	SM2CiphertextValue *cv = NULL;
+	long clen = 0;
+	unsigned char *p = NULL, *p2 = NULL;
+
+	if(!(group = new_ec_group(1,
+		"FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF",
+		"FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC",
+		"28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93",
+		"32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7",
+		"BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0",
+		"FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123",
+		"1"))){
+		goto ret;
+	}
+	if (!(ec_key = new_ec_key(group, dH, xH, yH, NULL, NULL))) {
+		goto ret;
+	}
+	p = p2 = OPENSSL_hexstr2buf(cipher,&clen);
+	if(!(cv = o2i_SM2CiphertextValue(group,md,&cv,(const unsigned char **)&p2,clen)) )
+	{
+		goto ret;
+	}
+	if (!(SM2_do_decrypt(md, cv,(unsigned char *)plain, (size_t *)pPlainLen, ec_key))) {
+		goto ret;
+	}
+	iRet = 1;
+ret:
+	OPENSSL_free(p);
+	SM2CiphertextValue_free(cv);
+	EC_KEY_free(ec_key);
+	EC_GROUP_clear_free(group);
+	return iRet;
+
+}
