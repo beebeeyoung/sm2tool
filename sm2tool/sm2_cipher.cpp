@@ -12,7 +12,7 @@
 #include <openssl/sm2.h>
 #include "sm2_lcl.h"
 
-
+#define printf(a) NULL
 RAND_METHOD fake_rand;
 const RAND_METHOD *old_rand;
 
